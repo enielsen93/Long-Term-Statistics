@@ -1,0 +1,35 @@
+// Generated using LTSCombiner
+
+[MOUSE_JOB_LIST]
+   [INPUT_FILES]
+      UND_file = ''
+      ADP_file = ''
+      CRF_file = ''
+      HGF_file = ''
+      PRF_file = ''
+      DWF_file = ''
+      RTC_file = ''
+      TRP_file = ''
+      MTF_file = ''
+      ERS_file = ''
+      ERF_file = ''
+      RSF_file = ''
+      // Input_files = {% for infile in inputfile %}'{{infile}}' {% endfor %}
+   EndSect  // INPUT_FILES
+{% for i in simulation_start %}
+      [SIMULATION_EVENT]
+      Simulation_start = '{{simulation_start[loop.index0]}}'
+      Simulation_end = '{{simulation_stop[loop.index0]}}'{% if hotstart_param == "true" %}
+      Hotstart_file = '{{hotstart_name[loop.index0]}}'
+      Hotstart_time = '{{hotstart_time[loop.index0]}}'{% endif %}
+
+    // Job                                                          :    {{job_number[loop.index0]}}
+    // Duration                                                     :    {{dur_time[loop.index0]}}h
+   EndSect  // SIMULATION_EVENT
+{% endfor %}
+
+   // Number of jobs                            :     {{jobs}}
+   // Total duration                            :     {{total_dur_time}}
+
+EndSect  // MOUSE_JOB_LIST
+
