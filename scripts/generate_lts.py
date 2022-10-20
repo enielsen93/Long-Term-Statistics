@@ -220,7 +220,7 @@ def writeLTS(parameters, scriptFolder):
     else:
         dataperiod = float(parametersDict["time_series_duration"]) * 365
 
-    time_aggregate_periods = list(map(int, parametersDict["time_aggregate_periods"].split(';'))) if parametersDict["time_aggregate_enable"] == "true" else [7, 30, 60]
+    time_aggregate_periods = list(map(int, parametersDict["time_aggregate_periods"].split(';'))) if parametersDict["time_aggregate_enable"] == "True" else [7, 30, 60]
     merge_period = max(
         time_aggregate_periods + [float(parametersDict["rain_event_merge_duration"])] + [5])
     rain_statistics, event_time = km2.rainStatistics(time_aggregate_periods, merge_period)
@@ -246,11 +246,11 @@ def writeLTS(parameters, scriptFolder):
             if rain_event.accumulated_rain > 15:
                 rain_event.reduce_timestep = True
 
-        if parametersDict["time_aggregate_enable"] == "true":
+        if parametersDict["time_aggregate_enable"] == "True":
             for period_i in range(len(time_aggregate_periods)-1):
                 if rain_event.statistics[period_i] > rain_statistics_sort[int(dataperiod/365.0/time_aggregate_return_period)-time_aggregate_extra_events, period_i]:
                     rain_event.include = True
-                    rain_event.selected_because_of.append(time_aggregate_periods[period_i])
+                    rain_event.selected_because_of.append(str(time_aggregate_periods[period_i]))
 
         if rain_event.include:
             for period_i in range(len(time_aggregate_periods)-1):
@@ -308,7 +308,7 @@ def writeLTS(parameters, scriptFolder):
             total_dur_time=duration_to_string(total_duration),
             dataperiod=duration_to_string(dataperiod),
             accumulated_rain=[round(rain_event.accumulated_rain,2) for rain_event in rain_events_included],
-            eventdts=[", ".join(rain_event.selected_because_of) for rain_event in rain_events_included],
+            eventdts=[[", ".join(rain_event.selected_because_of)] for rain_event in rain_events_included],
             date_criteria=parametersDict["date_criteria"],
             configStr=configStr,
             hotstart_param = parametersDict["hotstart_param"],

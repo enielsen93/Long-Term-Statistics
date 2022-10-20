@@ -19,7 +19,7 @@
 {% for i in simulation_start %}
       [SIMULATION_EVENT]
       Simulation_start = '{{simulation_start[loop.index0]}}'
-      Simulation_end = '{{simulation_stop[loop.index0]}}'{% if hotstart_param == "true" %}
+      Simulation_end = '{{simulation_stop[loop.index0]}}'{% if hotstart_param == "True" %}
       Hotstart_file = '{{hotstart_name}}'
       Hotstart_time = '{{hotstart_date}} {{hotstart_time[loop.index0]}}'{% endif %}{% if event_reduce_timestep[loop.index0] %}
 	  DtMin = 2
