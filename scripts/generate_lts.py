@@ -220,7 +220,7 @@ def writeLTS(parameters, scriptFolder):
     else:
         dataperiod = float(parametersDict["time_series_duration"]) * 365
 
-    time_aggregate_periods = list(map(int, parametersDict["time_aggregate_periods"].split(';'))) if parametersDict["time_aggregate_enable"] == "True" else [7, 30, 60]
+    time_aggregate_periods = list(map(int, parametersDict["time_aggregate_periods"].split(';'))) if parametersDict["time_aggregate_enable"].lower() == "true" else [7, 30, 60]
     merge_period = max(
         time_aggregate_periods + [float(parametersDict["rain_event_merge_duration"])] + [5])
     rain_statistics, event_time = km2.rainStatistics(time_aggregate_periods, merge_period)
@@ -246,7 +246,7 @@ def writeLTS(parameters, scriptFolder):
             if rain_event.accumulated_rain > 15:
                 rain_event.reduce_timestep = True
 
-        if parametersDict["time_aggregate_enable"] == "True":
+        if parametersDict["time_aggregate_enable"].lower() == "true":
             for period_i in range(len(time_aggregate_periods)-1):
                 if rain_event.statistics[period_i] > rain_statistics_sort[int(dataperiod/365.0/time_aggregate_return_period)-time_aggregate_extra_events, period_i]:
                     rain_event.include = True
