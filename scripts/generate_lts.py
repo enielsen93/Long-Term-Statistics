@@ -94,7 +94,7 @@ def readDFS0(filename):
     
     dfs0 = mikeio.dfs0.Dfs0(filename)
     dfs0_read = dfs0.read()
-    gaugetime, gaugeint = dates.date2num(dfs0_read.time), dfs0_read.data[0]
+    gaugetime, gaugeint = dates.date2num(dfs0_read.time), dfs0_read.to_numpy()[0,:]
     return gaugetime, gaugeint
 
 # Function that writes DFS0 file
@@ -107,7 +107,7 @@ def writeDFS0(gaugetime, gaugeint, outfile):
 
     dfs0 = mikeio.dfs0.Dfs0()
     dfs0.write(outfile, data = [gaugeint], start_time = dates.num2date(gaugetime[0]),
-           items = [mikeio.eum.ItemInfo("Rainfall Intensity", mikeio.eum.EUMType.Rainfall_Intensity, unit = mikeio.eum.EUMUnit.mu_m_per_sec)], datetimes = dates.num2date(gaugetime))
+           items = [mikeio.eum.ItemInfo("Rainfall Intensity", mikeio.eum.EUMType.Rainfall_Intensity, unit = mikeio.eum.EUMUnit.mu_m_per_sec, data_value_type = "MeanStepBackward")], datetimes = dates.num2date(gaugetime))
            
     return
 
@@ -209,7 +209,9 @@ def writeLTS(parameters, scriptFolder):
 
     if ".dfs0" in parametersDict["input_file"]:
         gaugetime, gaugeint = readDFS0(
-            parametersDict["input_file"], scriptFolder)
+            parametersDict["input_file"])
+        km2 = rainreader.KM2([gaugetime, gaugeint])
+        gaugetime, gaugeint = km2.gaugetime, km2.gaugeint
     else:
         km2 = rainreader.KM2(parametersDict["input_file"])
         gaugetime, gaugeint = km2.gaugetime, km2.gaugeint
@@ -220,7 +222,12 @@ def writeLTS(parameters, scriptFolder):
     else:
         dataperiod = float(parametersDict["time_series_duration"]) * 365
 
-    time_aggregate_periods = list(map(int, parametersDict["time_aggregate_periods"].split(';'))) if parametersDict["time_aggregate_enable"].lower() == "true" else [7, 30, 60]
+    if parametersDict["time_aggregate_enable"].lower() == "true":
+        time_aggregate_periods = list(map(int, parametersDict["time_aggregate_periods"].split(';')))
+    elif parametersDict["enable_dtmin"].lower() == "true":
+        time_aggregate_periods = [7, 30, 60]
+    else:
+        time_aggregate_periods = []
     merge_period = max(
         time_aggregate_periods + [float(parametersDict["rain_event_merge_duration"])] + [5])
     rain_statistics, event_time = km2.rainStatistics(time_aggregate_periods, merge_period)
@@ -243,7 +250,7 @@ def writeLTS(parameters, scriptFolder):
     for rain_event in rain_events:
         if include_events_total_rain_depth > 0 and rain_event.accumulated_rain > include_events_total_rain_depth:
             rain_event.include = True
-            if rain_event.accumulated_rain > 15:
+            if parametersDict["enable_dtmin"].lower() == "true" and rain_event.accumulated_rain > 15:
                 rain_event.reduce_timestep = True
 
         if parametersDict["time_aggregate_enable"].lower() == "true":
@@ -252,7 +259,7 @@ def writeLTS(parameters, scriptFolder):
                     rain_event.include = True
                     rain_event.selected_because_of.append(str(time_aggregate_periods[period_i]))
 
-        if rain_event.include:
+        if rain_event.include and parametersDict["enable_dtmin"].lower() == "true":
             for period_i in range(len(time_aggregate_periods)-1):
                 if rain_event.statistics[period_i] > rain_statistics_sort[int(dataperiod/365.0/2), period_i]:
                     rain_event.reduce_timestep = True
@@ -311,13 +318,23 @@ def writeLTS(parameters, scriptFolder):
             eventdts=[[", ".join(rain_event.selected_because_of)] for rain_event in rain_events_included],
             date_criteria=parametersDict["date_criteria"],
             configStr=configStr,
-            hotstart_param = parametersDict["hotstart_param"],
+            hotstart_param = parametersDict["hotstart_param"].lower(),
             hotstart_name = parametersDict["hotstart_name"],
             hotstart_date = parametersDict["hotstart_date"],
             hotstart_time = [getTimeRE.findall(rain_event.event_start_time.strftime('%Y-%m-%d %H:%M:00'))[0] for rain_event in rain_events_included],
             event_reduce_timestep = [rain_event.reduce_timestep for rain_event in rain_events_included],
             event_increase_timestep = [False] + [rain_event.reduce_timestep for rain_event in rain_events_included]))
     fout.close()
+
+    # arcpy.AddMessage(parametersDict["dfs0_output_enable"] == "true")
+    if parametersDict["dfs0_output_enable"].lower() == "true" and parametersDict["dfs_output"]:
+        gaugetime_filtered, gaugeint_filtered = (np.array(()), np.array(()))
+        for rain_event in rain_events_included:
+            gaugetime_filtered = np.concatenate((gaugetime_filtered, gaugetime[rain_event.start_i:rain_event.stop_i+1]))
+            gaugeint_filtered = np.concatenate((gaugeint_filtered, gaugeint[rain_event.start_i:rain_event.stop_i+1]))
+        writeDFS0(gaugetime_filtered, gaugeint_filtered, parametersDict["dfs_output"])
+
+
 
     # Create csv-file with LTS events
     if not True:
@@ -447,6 +464,8 @@ def combineLTS(parameters, scriptFolder):
 # If this .py-file is run as a stand-alone, write an LTS-file with
 # parameters from .ini-file (generated from previous run from ArcGIS)
 if __name__ == '__main__':
+    # readDFS0(
+    #     r"\\files\Projects\RWA2022N000XX\RWA2022N00009\_Modtaget_modeller\Regnserier\Viby_godkendte_1979_2018.dfs0")
     # Read config file
     config = configparser.ConfigParser()
     config.read(os.path.dirname(os.path.realpath(__file__)) + "\\config.ini")

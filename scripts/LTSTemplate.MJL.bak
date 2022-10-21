@@ -23,7 +23,7 @@
       Hotstart_file = '{{hotstart_name}}'
       Hotstart_time = '{{hotstart_date}} {{hotstart_time[loop.index0]}}'{% endif %}{% if event_reduce_timestep[loop.index0] %}
 	  DtMin = 2
-	  DtMax = 1{% elif event_increase_timestep[loop.index0] %}
+	  DtMax = 2{% elif event_increase_timestep[loop.index0] %}
 	  DtMin = 10
 	  DtMax = 60{% endif %}
 

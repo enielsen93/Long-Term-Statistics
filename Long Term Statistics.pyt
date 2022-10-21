@@ -49,6 +49,20 @@ def writeDFS0(gaugetime, gaugeint, outfile):
            
     return
 
+class ToolParameters:
+    def __init__(self, parameters):
+        self.parameters = parameters
+        self.values = {}
+
+        for parameter in parameters:
+            setattr(self, parameter.name, parameter)
+            if " " in parameter.name:
+                arcpy.AddError("Error: Space in parameter %s" % parameter.name)
+            if type(parameter.value) is float or parameter.value is None or parameter.value is bool:
+                self.values[parameter.name] = parameter.Value
+            else:
+                self.values[parameter.name] = parameter.ValueAsText
+
 class Toolbox(object):
     def __init__(self):
         """Define the toolbox (the name of the toolbox is the name of the
@@ -172,23 +186,23 @@ class LTSGenerator(object):
             direction="Input")
         date_criteria.enabled = False
         
-        # param13 = arcpy.Parameter(
-            # displayName="Save DFS0 file",
-            # name="dfs0_output_enable",
-            # datatype="Boolean",
-            # parameterType="Optional",
-            # direction="Input")    
-        # param13.category = "Save DFS0 file"
-        
-        # param14 = arcpy.Parameter(
-            # displayName="Output DFS0 file",
-            # name="dfs_output",
-            # datatype="File",
-            # parameterType="Optional",
-            # direction="Output")
-        # param14.category = "Save DFS0 file"
-        # param14.enabled = False
-        # param14.filter.list=["dfs0"]
+        dfs0_output_enable = arcpy.Parameter(
+            displayName="Save DFS0 file",
+            name="dfs0_output_enable",
+            datatype="Boolean",
+            parameterType="Optional",
+            direction="Input")
+        dfs0_output_enable.category = "Save DFS0 file"
+
+        dfs_output = arcpy.Parameter(
+            displayName="Output DFS0 file",
+            name="dfs_output",
+            datatype="File",
+            parameterType="Optional",
+            direction="Output")
+        dfs_output.category = "Save DFS0 file"
+        dfs_output.enabled = False
+        dfs_output.filter.list=["dfs0"]
         
         rain_event_merge = arcpy.Parameter(
             displayName="Merge rain events over dry periods",
@@ -234,6 +248,14 @@ class LTSGenerator(object):
             direction="Input")
         hotstart_date.category = "Include hotstart"
         # hotstart_date.filter.list = ["2010-01-09"]
+
+        enable_dtmin = arcpy.Parameter(
+            displayName="Reduce timestep for extreme rain events",
+            name="enable_dtmin",
+            datatype="Boolean",
+            parameterType="Optional",
+            direction="input")
+        enable_dtmin.category = "Additional Settings"
         
         
         
@@ -257,32 +279,34 @@ class LTSGenerator(object):
         #    2    time_series_duration: Duration of time series: [years]
 
 
-        params = [input_file, output_mjl, time_series_duration, date_criteria, include_events_total_rain_depth, include_events_return_period, soft_start_time, soft_stop_time, time_aggregate_enable, time_aggregate_return_period, time_aggregate_number_events, time_aggregate_periods, rain_event_merge, rain_event_merge_duration, hotstart_param, hotstart_name, hotstart_date] #, param13, param14, date_criteria
+        params = [input_file, output_mjl, time_series_duration, date_criteria, include_events_total_rain_depth, include_events_return_period, soft_start_time, soft_stop_time, time_aggregate_enable, time_aggregate_return_period, time_aggregate_number_events, time_aggregate_periods, rain_event_merge, rain_event_merge_duration, hotstart_param, hotstart_name, hotstart_date, dfs0_output_enable, dfs_output, enable_dtmin] #, param13, param14, date_criteria
 
         return params
 
     def isLicensed(self):
         return True
 
-    def updateParameters(self, parameters):        
+    def updateParameters(self, parameters):
         # Set the default distance threshold to 1/100 of the larger of the width
         #  or height of the extent of the input features.  Do not set if there is no 
         #  input dataset yet, or the user has set a specific distance (Altered is true).
         #
-        if parameters[0].altered:
-            if not parameters[1].valueAsText:
-                filename, _ = os.path.splitext(parameters[0].valueAsText)
-                parameters[1].value = filename +".MJL"
+        tool_parameters = ToolParameters(parameters)
+
+        if tool_parameters.input_file.altered:
+            if not tool_parameters.output_mjl.valueAsText:
+                filename, _ = os.path.splitext(tool_parameters.input_file.valueAsText)
+                tool_parameters.output_mjl.value = filename +".MJL"
             if not parameters[2].valueAsText or not parameters[3].valueAsText:
                 dataperiod,daterange = generate_lts.getDataPeriod(parameters,scriptFolder)
                 if not parameters[2].valueAsText:
                     parameters[2].value = round(float(dataperiod),1)
                 if not parameters[3].valueAsText:
                     parameters[3].value = daterange
-            if not parameters[13].valueAsText:
-                if ".km2" in str(parameters[0].valueAsText) and parameters[12].value == True:
-                    filename, _ = os.path.splitext(parameters[0].valueAsText)
-                    parameters[13].value = filename +".dfs0"
+            if not tool_parameters.dfs_output.valueAsText:
+                if ".km2" in str(tool_parameters.input_file.valueAsText) and tool_parameters.dfs0_output_enable.value == True:
+                    filename, _ = os.path.splitext(tool_parameters.input_file.valueAsText)
+                    tool_parameters.dfs_output.value = filename + "reduced.dfs0"
         if parameters[8].value == True:
             parameters[9].enabled = True
             parameters[11].enabled = True
@@ -291,13 +315,13 @@ class LTSGenerator(object):
             parameters[9].enabled = False
             parameters[11].enabled = False
             parameters[10].enabled = False
-        if parameters[12].value == True:
-            parameters[13].enabled = True
+        if tool_parameters.dfs0_output_enable.value == True:
+            tool_parameters.dfs_output.enabled = True
         else:
             parameters[13].enabled = False
         if parameters[12].value == True:
             parameters[13].enabled = True
-        else: 
+        else:
             parameters[13].enabled = False
         if parameters[14].value == True:
             parameters[15].enabled = True
@@ -305,7 +329,8 @@ class LTSGenerator(object):
         else:
             parameters[15].enabled = False
             parameters[16].enabled = False
-            return
+
+        return
 
     def updateMessages(self, parameters):
         if True:
@@ -326,7 +351,8 @@ class LTSGenerator(object):
                 if not parameters[13].value > 0:
                     parameters[13].setErrorMessage("Must select duration of dry period")            
     def execute(self, parameters, messages):
-        generate_lts.writeLTS(parameters,scriptFolder)
+        # tool_parameters = ToolParameters(parameters)
+        generate_lts.writeLTS(parameters, scriptFolder)
         return
         
 class LTSCombiner(object):

@@ -1,13 +1,12 @@
 [ArcGIS input parameters]
 # input dfs0 or km2 file (rain series)
 input_file = C:\Papirkurv\Viby_godkendte_1979_2018.txt
-#\\files\Projects\RWA2022N000XX\RWA2022N00009\_Modtaget_modeller\Regnserier\Viby_godkendte_1979_2018.txt
 
 # output mouse job list (mjl) file
 output_mjl = C:\Papirkurv\Test2.mjl
 
 # duration of time series: [years]
-time_series_duration = 38.0
+time_series_duration = 39.8
 
 # select only rain events between these two dates:
 date_criteria = 07/01/1979 - 03/10/2018
@@ -37,17 +36,24 @@ time_aggregate_number_events = 0
 time_aggregate_periods = 10;30;60;180;360
 
 # merge rain events over dry periods
-rain_event_merge = True
+rain_event_merge = False
 
 # merge rain events with dry periods shorter than [min]
-rain_event_merge_duration = 120
+rain_event_merge_duration = 60.0
 
 # include hotstart
 hotstart_param = True
 
 # name of hotstart-file
-hotstart_name = MARS_Detailed_210429_10_DWFHotStartBase.res1d
+hotstart_name = MARS_Detailed_210429_10_DWFHotStart.res1d
 
 # date of hotstart-file (format: yyyy-mm-dd)
 hotstart_date = 2020-01-03
+
+# save dfs0 file
+dfs0_output_enable = True
+
+# output dfs0 file
+dfs_output = C:\Papirkurv\Viby_godkendte_1979_2018.dfs0
 
+enable_dtmin = True
