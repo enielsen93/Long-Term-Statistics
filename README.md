@@ -10,5 +10,3 @@ python -m pip install https://github.com/enielsen93/rainreader/tarball/master
 ```
 
 Remember that python has to be your ArcGIS Pro Python executable. 
-
-```
