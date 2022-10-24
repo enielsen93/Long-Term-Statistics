@@ -210,10 +210,10 @@ def writeLTS(parameters, scriptFolder):
     if ".dfs0" in parametersDict["input_file"]:
         gaugetime, gaugeint = readDFS0(
             parametersDict["input_file"])
-        km2 = rainreader.KM2([gaugetime, gaugeint])
+        km2 = rainreader.KM2([gaugetime, gaugeint], date_criteria = parametersDict["date_criteria"].split("-"))
         gaugetime, gaugeint = km2.gaugetime, km2.gaugeint
     else:
-        km2 = rainreader.KM2(parametersDict["input_file"])
+        km2 = rainreader.KM2(parametersDict["input_file"], date_criteria = parametersDict["date_criteria"].split("-"))
         gaugetime, gaugeint = km2.gaugetime, km2.gaugeint
 
     if (float(parametersDict["time_series_duration"].replace(",",".")) == 0):
@@ -329,9 +329,20 @@ def writeLTS(parameters, scriptFolder):
     # arcpy.AddMessage(parametersDict["dfs0_output_enable"] == "true")
     if parametersDict["dfs0_output_enable"].lower() == "true" and parametersDict["dfs_output"]:
         gaugetime_filtered, gaugeint_filtered = (np.array(()), np.array(()))
+        if not rain_events[0].include:
+            gaugetime_filtered = np.concatenate(
+                (gaugetime_filtered, np.array([gaugetime[rain_events[0].start_i]])))
+            gaugeint_filtered = np.concatenate(
+                (gaugeint_filtered, np.array([0])))
         for rain_event in rain_events_included:
             gaugetime_filtered = np.concatenate((gaugetime_filtered, gaugetime[rain_event.start_i:rain_event.stop_i+1]))
             gaugeint_filtered = np.concatenate((gaugeint_filtered, gaugeint[rain_event.start_i:rain_event.stop_i+1]))
+
+        if not rain_events[-1].include:
+            gaugetime_filtered = np.concatenate(
+                (gaugetime_filtered, np.array([gaugetime[-1]])))
+            gaugeint_filtered = np.concatenate(
+                (gaugeint_filtered, np.array([0])))
         writeDFS0(gaugetime_filtered, gaugeint_filtered, parametersDict["dfs_output"])
 
 

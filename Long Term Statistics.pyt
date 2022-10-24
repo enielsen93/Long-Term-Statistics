@@ -184,7 +184,7 @@ class LTSGenerator(object):
             datatype="String",
             parameterType="Optional",
             direction="Input")
-        date_criteria.enabled = False
+        date_criteria.enabled = True
         
         dfs0_output_enable = arcpy.Parameter(
             displayName="Save DFS0 file",
@@ -314,7 +314,7 @@ class LTSGenerator(object):
         else:
             parameters[9].enabled = False
             parameters[11].enabled = False
-            parameters[10].enabled = False
+            # parameters[10].enabled = False
         if tool_parameters.dfs0_output_enable.value == True:
             tool_parameters.dfs_output.enabled = True
         else:
