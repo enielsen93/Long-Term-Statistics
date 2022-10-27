@@ -200,9 +200,17 @@ class LTSGenerator(object):
             datatype="File",
             parameterType="Optional",
             direction="Output")
+        # dfs_output.filter = ["dfs0"]
         dfs_output.category = "Save DFS0 file"
         dfs_output.enabled = False
-        dfs_output.filter.list=["dfs0"]
+
+        input_file = arcpy.Parameter(
+            displayName="Input DFS0 or KM2 file (Rain series)",
+            name="input_file",
+            datatype="File",
+            parameterType="Required",
+            direction="Input")
+        input_file.filter.list = ["dfs0", "km2", "kmd", "txt"]
         
         rain_event_merge = arcpy.Parameter(
             displayName="Merge rain events over dry periods",

@@ -1,2 +1,1 @@
-2022-10-24 10:06:12.231050: Writing LTS file using Jinga2
-2022-10-24 10:06:17.980110: Succesful run
+2022-10-27 09:57:00.501000: Writing LTS file using Jinga2
