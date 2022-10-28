@@ -624,7 +624,7 @@ class LTSSplitterMex(object):
         RunoffFile = parameters[2].ValueAsText
         mex_file = parameters[3].ValueAsText
         mouse_sim_launch = parameters[4].ValueAsText
-        run_runoff = parameters[5].ValueAsText
+        run_runoff = parameters[5].Value
         
         with open(LTSFile,'r') as f:
             lts_txt = f.read()
@@ -734,18 +734,17 @@ class LTSSplitterMex(object):
             #         run_mex(mouse_sim_launch, mex_file_new)
 
         if mouse_sim_launch:
-            if run_runoff:
-                for mex_file in mex_files:
+            for mex_file in mex_files:
+                if run_runoff:
                     run_cmd = r'"%s" "%s" "RO" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file)
                     subprocess.check_output(run_cmd)
 
-                for mex_file in mex_files:
-                    while len(processes) > 0 and not np.sum(
-                            [1 for process in processes if process.poll() is None]) < splitCount:
-                        time.sleep(5)
-                    run_cmd = r'"%s" "%s" "HD" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file)
-                    processes.append(subprocess.Popen(run_cmd))
-                    time.sleep(1)
+                while len(processes) > 0 and not np.sum(
+                        [1 for process in processes if process.poll() is None]) < splitCount:
+                    time.sleep(5)
+                run_cmd = r'"%s" "%s" "HD" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file)
+                processes.append(subprocess.Popen(run_cmd))
+                time.sleep(1)
         return
         
 class LTSExtractor(object):
