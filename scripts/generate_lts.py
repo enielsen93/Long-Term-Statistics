@@ -301,7 +301,7 @@ def writeLTS(parameters, scriptFolder):
     getTimeRE = re.compile("(\d+:\d+:\d+)")
 
     # Write LTS file with event information vectors
-    fout = open(parametersDict["output_mjl"], 'w+')
+    fout = open(parametersDict["output_mjl"], 'w')
     fout.write(
         Environment().from_string(templateFileStr).render(
             inputfile=parametersDict["input_file"],
@@ -457,7 +457,7 @@ def combineLTS(parameters, scriptFolder):
     templateFileStr = templateFile.read()
 
     # Write LTS file with event information vectors
-    fout = open(parameters[1].valueAsText, 'w+')
+    fout = open(parameters[1].valueAsText, 'w')
     fout.write(Environment().from_string(templateFileStr).render(inputfile=lts_files,
                                                                  simulation_start=starttime,
                                                                  simulation_stop=stoptime,
