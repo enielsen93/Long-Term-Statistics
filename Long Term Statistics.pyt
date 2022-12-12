@@ -74,7 +74,7 @@ class Toolbox(object):
         self.alias = ""
 
         # List of tool classes associated with this toolbox
-        self.tools = [LTSGenerator,LTSCombiner, LTSSplitter, LTSExtractor, DFS0Reducer, LTSSplitterMex]
+        self.tools = [LTSGenerator,LTSCombiner, LTSSplitter, LTSExtractor, DFS0Reducer, LTSSplitterMex, CompressERF]
 
 
 class LTSGenerator(object):
@@ -936,4 +936,88 @@ class DFS0Reducer(object):
         gaugeintFilt_gap_filled = np.concatenate(([0,0,0],gaugeintFilt_gap_filled,[0,0,0]))
 
         writeDFS0(gaugetimeFilt_gap_filled, gaugeintFilt_gap_filled, dfs0FileNew)
+        return
+        
+class CompressERF(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Filter ERF File"
+        self.description = "Filter ERF File"
+        self.canRunInBackground = True
+
+    def getParameterInfo(self):
+        #Define parameter definitions
+
+        # First parameter
+        erf_files = arcpy.Parameter(
+            displayName="ERF files",
+            name="erf_files",
+            datatype="File",
+            parameterType="Required",
+            direction="Input",
+            multiValue=True)
+        erf_files.filter.list=["erf"]
+        
+        filter_sections = arcpy.Parameter(
+            displayName="Sections to keep in ERF file",
+            name="filter_sections",
+            datatype="GPString",
+            parameterType="Required",
+            multiValue=True,
+            direction="Input")
+        
+
+
+        parameters = [erf_files, filter_sections] #, param13, param14, date_criteria
+
+        return parameters
+
+    def isLicensed(self):
+        return True
+
+    def updateParameters(self, parameters):
+        # Set the default distance threshold to 1/100 of the larger of the width
+        #  or height of the extent of the input features.  Do not set if there is no 
+        #  input dataset yet, or the user has set a specific distance (Altered is true).
+        #
+        if parameters[0].ValueAsText:
+            erf_files = parameters[0].ValueAsText.split(";")
+            erf_file = erf_files[0]
+            with open(erf_file, 'r') as f:
+                txt_lines = f.readlines()
+            
+            re_find_section = re.compile(r"^      \[([^\]]+)\]")
+            section_linenos = [i for i,line in enumerate(txt_lines) if re_find_section.findall(line)]
+            sections = [re_find_section.findall(txt_lines[i])[0] for i in section_linenos]
+            
+            parameters[1].filter.list = sections
+        return
+
+    def updateMessages(self, parameters):
+        return
+        
+    def execute(self, parameters, messages):
+        erf_files = parameters[0].ValueAsText.split(";")
+        sections_selected = parameters[1].ValueAsText.split(";")
+        
+        for erf_file in erf_files:
+            erf_output = erf_file.lower().replace(".erf","_reduced.erf")
+            with open(erf_file, 'r') as f:
+                txt_lines = f.readlines()
+        
+            re_find_section = re.compile(r"^      \[([^\]]+)\]")
+            section_linenos = [i for i,line in enumerate(txt_lines) if re_find_section.findall(line)]
+            sections = [re_find_section.findall(txt_lines[i])[0] for i in section_linenos]
+            section_linenos.append([i for i,line in enumerate(txt_lines) if r"EndSect  // Results" in line][0])
+
+            lines_to_output = np.arange(0, section_linenos[0])
+            arcpy.AddMessage(sections_selected)
+            for sections_i in [i for i, sec in enumerate(sections) if sec in sections_selected]:
+                lines_to_output = np.concatenate((lines_to_output, np.arange(section_linenos[sections_i], section_linenos[sections_i+1])))
+                
+            lines_to_output = np.concatenate((lines_to_output, np.arange(section_linenos[-1], len(txt_lines))))
+                
+            with open(erf_output, 'w') as f:
+                txt_lines_array = np.array(txt_lines)
+                f.writelines(txt_lines_array[lines_to_output])
         return

@@ -23,9 +23,12 @@ import subprocess
 import copy
 import time
 
-def run_mex(mouse_sim_launch, mex_file):
-    run_cmd = r'"%s" "%s" "HD" "Run" "Close" "NoPrompt"' % (mouse_sim_launch, mex_file)
-    subprocess.Popen(run_cmd)
+def run_mex(mouse_sim_launch, mex_file, parallel = False, type = "HD"):
+    run_cmd = r'"%s" "%s" "%s" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file, type)
+    if parallel:
+        subprocess.Popen(run_cmd)
+    else:
+        subprocess.call(run_cmd)
 
 def readDFS0(filename):
     import mikeio
@@ -71,7 +74,7 @@ class Toolbox(object):
         self.alias = ""
 
         # List of tool classes associated with this toolbox
-        self.tools = [LTSGenerator,LTSCombiner, LTSSplitter, LTSExtractor, DFS0Reducer, LTSSplitterMex]
+        self.tools = [LTSGenerator,LTSCombiner, LTSSplitter, LTSExtractor, DFS0Reducer, LTSSplitterMex, CompressERF]
 
 
 class LTSGenerator(object):
@@ -184,7 +187,7 @@ class LTSGenerator(object):
             datatype="String",
             parameterType="Optional",
             direction="Input")
-        date_criteria.enabled = False
+        date_criteria.enabled = True
         
         dfs0_output_enable = arcpy.Parameter(
             displayName="Save DFS0 file",
@@ -200,9 +203,17 @@ class LTSGenerator(object):
             datatype="File",
             parameterType="Optional",
             direction="Output")
+        # dfs_output.filter = ["dfs0"]
         dfs_output.category = "Save DFS0 file"
         dfs_output.enabled = False
-        dfs_output.filter.list=["dfs0"]
+
+        input_file = arcpy.Parameter(
+            displayName="Input DFS0 or KM2 file (Rain series)",
+            name="input_file",
+            datatype="File",
+            parameterType="Required",
+            direction="Input")
+        input_file.filter.list = ["dfs0", "km2", "kmd", "txt"]
         
         rain_event_merge = arcpy.Parameter(
             displayName="Merge rain events over dry periods",
@@ -576,16 +587,23 @@ class LTSSplitterMex(object):
             parameterType="Optional",
             direction="Input")
         mouse_sim_launch.filter.list=["exe"]
-        
+
         mouse_sim_launch_paths = [r"C:\Program Files (x86)\DHI\2020\bin\x64\MOUSESimLaunch.exe"]
         for path in mouse_sim_launch_paths:
             for year in reversed(range(2010,2030)):
                 if os.path.exists(path.replace("2020",str(year))):
                     mouse_sim_launch.value = path.replace("2020",str(year))
                     break
+
+        run_runoff = arcpy.Parameter(
+            displayName="Run Runoff",
+            name="run_runoff",
+            datatype="Boolean",
+            parameterType="optional",
+            direction="Output")
         
         
-        params = [LTSFile, LTSCount, RunoffFile, mex_file, mouse_sim_launch]
+        params = [LTSFile, LTSCount, RunoffFile, mex_file, mouse_sim_launch, run_runoff]
 
         return params
 
@@ -606,41 +624,69 @@ class LTSSplitterMex(object):
         RunoffFile = parameters[2].ValueAsText
         mex_file = parameters[3].ValueAsText
         mouse_sim_launch = parameters[4].ValueAsText
+        run_runoff = parameters[5].Value
         
         with open(LTSFile,'r') as f:
-            LTSTxt = f.read().split("\n")
-        LTSTxt = np.array(LTSTxt)
+            lts_txt = f.read()
+        lts_txt_array = np.array(lts_txt.split("\n"))
+        arcpy.AddMessage(LTSFile)
 
-        LTSStartLine = [i for i,a in enumerate(LTSTxt) if r"[SIMULATION_EVENT]" in a]
-        LTSEndLine = [i for i,a in enumerate(LTSTxt) if r"EndSect  // SIMULATION_EVENT" in a]
-        
-        #LTSNewTxt = LTSTxt[0:LTSStartLine[0]]
+        LTSStartLine = [i for i,a in enumerate(lts_txt_array) if r"[SIMULATION_EVENT]" in a]
+        LTSEndLine = [i for i,a in enumerate(lts_txt_array) if r"EndSect  // SIMULATION_EVENT" in a]
+
+        class Simulation:
+            def __init__(self, start, stop):
+                self.start = start
+                self.stop = stop
+
+        # simulations = []
+        get_simulation_start = re.compile("Simulation_start *= *'([^']+)'")
+        get_simulation_stop = re.compile("Simulation_end *= *'([^']+)'")
+        # for simulation_start, simulation_stop in zip(get_simulation_start.findall(lts_txt), get_simulation_start.findall(lts_txt)):
+        #     simulations.append(Simulation(simulation_start, simulation_start))
+
+        # class LTS:
+        #     def __init__(self, text = ""):
+        #         self.txt = text
+
+        #LTSNewTxt = lts_txt_array[0:LTSStartLine[0]]
         jobsPerLTS = int(np.ceil(float(len(LTSStartLine))/splitCount))
         LTSNewTxt = [[] for i in range(splitCount)]
-        
+
+        simulations = []
+
         LTS_files = []
         if LTSFile:
             job = 0
+            arcpy.AddMessage((0,len(LTSStartLine),jobsPerLTS))
             for i in np.arange(0,len(LTSStartLine),jobsPerLTS):
-                LTSNewTxt[job] = LTSTxt[0:LTSStartLine[0]]
+                simulation = Simulation(None, None)
+                LTSNewTxt[job] = lts_txt_array[0:LTSStartLine[0]]
                 for j in np.arange(i,min(i+jobsPerLTS,len(LTSStartLine))):
-                    LTSNewTxt[job] = np.concatenate((LTSNewTxt[job],LTSTxt[LTSStartLine[j]:LTSEndLine[j]+1]))
-                LTSNewTxt[job] = np.concatenate((LTSNewTxt[job],LTSTxt[LTSEndLine[-1]+1:len(LTSTxt)]))
+                    if not simulation.start:
+                        simulation.start = get_simulation_start.findall("".join(lts_txt_array[LTSStartLine[j]:LTSEndLine[j]+1]))[0]
+                    LTSNewTxt[job] = np.concatenate((LTSNewTxt[job],lts_txt_array[LTSStartLine[j]:LTSEndLine[j]+1]))
+                simulation.stop = get_simulation_stop.findall(".".join(lts_txt_array[LTSStartLine[j]:LTSEndLine[j] + 1]))[0]
+                simulations.append(simulation)
+                LTSNewTxt[job] = np.concatenate((LTSNewTxt[job],lts_txt_array[LTSEndLine[-1]+1:len(lts_txt_array)]))
                 
                 LTS_files.append(LTSFile[0:-4] + "_Split%d.mjl" % (job+1))
                 with open(LTS_files[-1],'w') as f:
                     f.write("\n".join(LTSNewTxt[job]))
+
                 job += 1
         
         with open(mex_file,"r") as f:
             mex_file_text = f.readlines()
         mex_file_text_mjl_lineno = [lineno for lineno,line in enumerate(mex_file_text) if "MJL_file" in line][0]
         mex_file_text_CRF_lineno = [lineno for lineno,line in enumerate(mex_file_text) if "CRF_file" in line][0]
-        
+        mex_file_text_simulation_start_lineno = [lineno for lineno, line in enumerate(mex_file_text) if "Simulation_start" in line]
+
+        processes = []
+        mex_files = []
         for job in range(splitCount):
             
             if RunoffFile:
-                arcpy.AddMessage("Copying %s" % RunoffFile)
                 RunoffFileNew = RunoffFile[0:-4] + "_Split%d.CRF" % (job+1)
                 if (not os.path.isfile(RunoffFileNew) or 
                     not os.path.getsize(RunoffFile)==os.path.getsize(RunoffFileNew) or 
@@ -650,10 +696,17 @@ class LTSSplitterMex(object):
                     time.sleep(5)
     
             mex_file_new = copy.deepcopy(mex_file.replace(".mex","_Split%d.mex" % (job+1)))
-            
+            mex_files.append(mex_file_new)
+
             mex_file_new_text = copy.deepcopy(mex_file_text)
             if LTSFile:
                 mex_file_new_text[mex_file_text_mjl_lineno] = re.sub("'[^']*'", "'%s'" % LTS_files[job], mex_file_new_text[mex_file_text_mjl_lineno])
+                for i in [0,1]:
+                    if job > 0:
+                        mex_file_new_text[mex_file_text_simulation_start_lineno[i]] = re.sub("'[^']*'", simulations[job].start, mex_file_new_text[mex_file_text_simulation_start_lineno[i]])
+                    if job < splitCount-1:
+                        mex_file_new_text[mex_file_text_simulation_start_lineno[i]+1] = re.sub("'[^']*'", simulations[job].stop, mex_file_new_text[
+                            mex_file_text_simulation_start_lineno[i]+1])
             else:
                 mex_file_new_text[mex_file_text_mjl_lineno] = mex_file_new_text[mex_file_text_mjl_lineno].replace(".MJL", "_Split%d.MJL" % (job+1))
             
@@ -665,8 +718,33 @@ class LTSSplitterMex(object):
             # copyfile(mex_file, mex_file_new)
             with open(mex_file_new,'w+') as f:
                 f.writelines(mex_file_new_text)
-            if mouse_sim_launch:
-                run_mex(mouse_sim_launch, mex_file_new)                
+
+            # if mouse_sim_launch:
+            #     if run_runoff:
+            #         while len(processes) > 0 and not np.sum(
+            #                 [1 for process in processes if process.poll() is None]) < LTSCount:
+            #             time.sleep(5)
+            #         if not RunoffFile:
+            #             run_cmd = r'"%s" "%s" "RO" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file_new)
+            #             subprocess.check_output(run_cmd)
+            #         run_cmd = r'"%s" "%s" "HD" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file_new)
+            #         processes.append(subprocess.Popen(run_cmd))
+            #         time.sleep(1)
+            #     else:
+            #         run_mex(mouse_sim_launch, mex_file_new)
+
+        if mouse_sim_launch:
+            for mex_file in mex_files:
+                if run_runoff:
+                    run_cmd = r'"%s" "%s" "RO" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file)
+                    subprocess.check_output(run_cmd)
+
+                while len(processes) > 0 and not np.sum(
+                        [1 for process in processes if process.poll() is None]) < splitCount:
+                    time.sleep(5)
+                run_cmd = r'"%s" "%s" "HD" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file)
+                processes.append(subprocess.Popen(run_cmd))
+                time.sleep(1)
         return
         
 class LTSExtractor(object):
@@ -702,6 +780,7 @@ class LTSExtractor(object):
             parameterType="Required",
             direction="Output",)
         LTSNewFile.filter.list=["mjl"]
+
         
         params = [LTSFile, dates, LTSNewFile]
 
@@ -857,4 +936,88 @@ class DFS0Reducer(object):
         gaugeintFilt_gap_filled = np.concatenate(([0,0,0],gaugeintFilt_gap_filled,[0,0,0]))
 
         writeDFS0(gaugetimeFilt_gap_filled, gaugeintFilt_gap_filled, dfs0FileNew)
+        return
+        
+class CompressERF(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Filter ERF File"
+        self.description = "Filter ERF File"
+        self.canRunInBackground = True
+
+    def getParameterInfo(self):
+        #Define parameter definitions
+
+        # First parameter
+        erf_files = arcpy.Parameter(
+            displayName="ERF files",
+            name="erf_files",
+            datatype="File",
+            parameterType="Required",
+            direction="Input",
+            multiValue=True)
+        erf_files.filter.list=["erf"]
+        
+        filter_sections = arcpy.Parameter(
+            displayName="Sections to keep in ERF file",
+            name="filter_sections",
+            datatype="GPString",
+            parameterType="Required",
+            multiValue=True,
+            direction="Input")
+        
+
+
+        parameters = [erf_files, filter_sections] #, param13, param14, date_criteria
+
+        return parameters
+
+    def isLicensed(self):
+        return True
+
+    def updateParameters(self, parameters):
+        # Set the default distance threshold to 1/100 of the larger of the width
+        #  or height of the extent of the input features.  Do not set if there is no 
+        #  input dataset yet, or the user has set a specific distance (Altered is true).
+        #
+        if parameters[0].ValueAsText:
+            erf_files = parameters[0].ValueAsText.split(";")
+            erf_file = erf_files[0]
+            with open(erf_file, 'r') as f:
+                txt_lines = f.readlines()
+            
+            re_find_section = re.compile(r"^      \[([^\]]+)\]")
+            section_linenos = [i for i,line in enumerate(txt_lines) if re_find_section.findall(line)]
+            sections = [re_find_section.findall(txt_lines[i])[0] for i in section_linenos]
+            
+            parameters[1].filter.list = sections
+        return
+
+    def updateMessages(self, parameters):
+        return
+        
+    def execute(self, parameters, messages):
+        erf_files = parameters[0].ValueAsText.split(";")
+        sections_selected = parameters[0].ValueAsText.split(";")
+        
+        for erf_file in erf_files:
+            erf_output = erf_file.lower().replace(".erf","_reduced.erf")
+            with open(erf_file, 'r') as f:
+                txt_lines = f.readlines()
+        
+            re_find_section = re.compile(r"^      \[([^\]]+)\]")
+            section_linenos = [i for i,line in enumerate(txt_lines) if re_find_section.findall(line)]
+            sections = [re_find_section.findall(txt_lines[i])[0] for i in section_linenos]
+            section_linenos.append([i for i,line in enumerate(txt_lines) if r"EndSect  // Results" in line][0])
+
+            lines_to_output = np.arange(0, section_linenos[0])
+            arcpy.AddMessage(sections_selected)
+            for sections_i in [i for i, sec in enumerate(sections) if sec in sections_selected]:
+                lines_to_output = np.concatenate((lines_to_output, np.arange(section_linenos[sections_i], section_linenos[sections_i+1])))
+                
+            lines_to_output = np.concatenate((lines_to_output, np.arange(section_linenos[-1], len(txt_lines))))
+                
+            with open(erf_output, 'w') as f:
+                txt_lines_array = np.array(txt_lines)
+                f.writelines(txt_lines_array[lines_to_output])
         return
