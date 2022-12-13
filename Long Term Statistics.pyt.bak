@@ -998,7 +998,7 @@ class CompressERF(object):
         
     def execute(self, parameters, messages):
         erf_files = parameters[0].ValueAsText.split(";")
-        sections_selected = parameters[0].ValueAsText.split(";")
+        sections_selected = parameters[1].ValueAsText.split(";")
         
         for erf_file in erf_files:
             erf_output = erf_file.lower().replace(".erf","_reduced.erf")

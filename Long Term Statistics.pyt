@@ -601,9 +601,17 @@ class LTSSplitterMex(object):
             datatype="Boolean",
             parameterType="optional",
             direction="Output")
+            
+        run_network = arcpy.Parameter(
+            displayName="Run Network",
+            name="run_network",
+            datatype="Boolean",
+            parameterType="optional",
+            direction="Output")
+        run_network.value = True
         
         
-        params = [LTSFile, LTSCount, RunoffFile, mex_file, mouse_sim_launch, run_runoff]
+        params = [LTSFile, LTSCount, RunoffFile, mex_file, mouse_sim_launch, run_runoff, run_network]
 
         return params
 
@@ -625,6 +633,7 @@ class LTSSplitterMex(object):
         mex_file = parameters[3].ValueAsText
         mouse_sim_launch = parameters[4].ValueAsText
         run_runoff = parameters[5].Value
+        run_network = parameters[6].Value
         
         with open(LTSFile,'r') as f:
             lts_txt = f.read()
@@ -737,14 +746,17 @@ class LTSSplitterMex(object):
             for mex_file in mex_files:
                 if run_runoff:
                     run_cmd = r'"%s" "%s" "RO" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file)
+                    arcpy.AddMessage(run_cmd)
                     subprocess.check_output(run_cmd)
-
-                while len(processes) > 0 and not np.sum(
-                        [1 for process in processes if process.poll() is None]) < splitCount:
-                    time.sleep(5)
-                run_cmd = r'"%s" "%s" "HD" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file)
-                processes.append(subprocess.Popen(run_cmd))
-                time.sleep(1)
+                
+                if run_network:
+                    while len(processes) > 0 and not np.sum(
+                            [1 for process in processes if process.poll() is None]) < splitCount:
+                        time.sleep(5)
+                    run_cmd = r'"%s" "%s" "HD" "Run" "Close" "NoPrompt" "-wait"' % (mouse_sim_launch, mex_file)
+                    arcpy.AddMessage(run_cmd)
+                    processes.append(subprocess.Popen(run_cmd))
+                    time.sleep(1)
         return
         
 class LTSExtractor(object):
