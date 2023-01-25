@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Tool for reading DFS0 or KM2 files and creating LTS files from it
 # Created by Emil Nielsen
 # Contact: 
@@ -315,7 +316,7 @@ class LTSGenerator(object):
                 if not parameters[3].valueAsText:
                     parameters[3].value = daterange
             if not tool_parameters.dfs_output.valueAsText:
-                if ".km2" in str(tool_parameters.input_file.valueAsText) and tool_parameters.dfs0_output_enable.value == True:
+                if ".km2" in tool_parameters.input_file.valueAsText and tool_parameters.dfs0_output_enable.value == True:
                     filename, _ = os.path.splitext(tool_parameters.input_file.valueAsText)
                     tool_parameters.dfs_output.value = filename + "reduced.dfs0"
         if parameters[8].value == True:

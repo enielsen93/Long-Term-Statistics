@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Tool for reading DFS0 or KM2 files and creating LTS files from it
 # Created by Emil Nielsen
 # Contact:
@@ -162,7 +163,12 @@ def writeLTS(parameters, scriptFolder):
         for i, par in enumerate(parameters):
             if par.value is None:
                 par.value = 0
-            parametersDict[par.name] = str(par.valueAsText)
+            elif not isinstance(par.valueAsText, str) and not isinstance(par.valueAsText, unicode):
+                par.value = str(par.value)
+            else:
+                par.value = par.valueAsText
+            print((par.name, type(par.name)))
+            parametersDict[par.name] = par.valueAsText 
             if i == 0:
                 configWrite.set(
                     "ArcGIS input parameters",
@@ -171,7 +177,11 @@ def writeLTS(parameters, scriptFolder):
                 configWrite.set(
                     "ArcGIS input parameters",
                     "\r\n# " + par.displayName)
-            configWrite.set("ArcGIS input parameters", str(par.name), str(par.value))
+            try:
+                configWrite.set("ArcGIS input parameters", par.name, par.valueAsText)
+            except Exception as e:
+                raise(Exception((par.name, par.value, type(par.value))))
+            
             configStr += r"// " + par.displayName + \
                 " = " + str(par.value) + "\n"
         with open(scriptFolder + r"\config.ini", "w") as config_file:
