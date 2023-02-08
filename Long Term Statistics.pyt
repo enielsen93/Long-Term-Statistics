@@ -660,31 +660,33 @@ class LTSSplitterMex(object):
         #         self.txt = text
 
         #LTSNewTxt = lts_txt_array[0:LTSStartLine[0]]
-        jobsPerLTS = int(np.ceil(float(len(LTSStartLine))/splitCount))
+        # jobsPerLTS = int(np.ceil(float(len(LTSStartLine))/splitCount))
+        jobs_split = np.array_split(range(len(LTSStartLine)), splitCount)
+        # arcpy.AddMessage((len(LTSStartLine), jobsPerLTS, splitCount))s
         LTSNewTxt = [[] for i in range(splitCount)]
 
         simulations = []
 
         LTS_files = []
         if LTSFile:
-            job = 0
-            arcpy.AddMessage((0,len(LTSStartLine),jobsPerLTS))
-            for i in np.arange(0,len(LTSStartLine),jobsPerLTS):
-                simulation = Simulation(None, None)
-                LTSNewTxt[job] = lts_txt_array[0:LTSStartLine[0]]
-                for j in np.arange(i,min(i+jobsPerLTS,len(LTSStartLine))):
-                    if not simulation.start:
-                        simulation.start = get_simulation_start.findall("".join(lts_txt_array[LTSStartLine[j]:LTSEndLine[j]+1]))[0]
-                    LTSNewTxt[job] = np.concatenate((LTSNewTxt[job],lts_txt_array[LTSStartLine[j]:LTSEndLine[j]+1]))
-                simulation.stop = get_simulation_stop.findall(".".join(lts_txt_array[LTSStartLine[j]:LTSEndLine[j] + 1]))[0]
+            # job = 0 # no. mjl file
+            # arcpy.AddMessage((0,len(LTSStartLine),jobsPerLTS))
+            for simulation_i in range(len(jobs_split)):
+                simulation = Simulation(None, None) # Create Simulation Class Instance
+                LTSNewTxt[simulation_i] = lts_txt_array[0:LTSStartLine[0]] # Copy start of MJL file to new MJL file
+                for job_i in jobs_split[simulation_i]:
+                    # arcpy.AddMessage((simulation_i, job_i))
+                    if not simulation.start: # Set start of LTS simulation to time of first job
+                        simulation.start = get_simulation_start.findall("".join(lts_txt_array[LTSStartLine[job_i]:LTSEndLine[job_i]+1]))[0]
+                    LTSNewTxt[simulation_i] = np.concatenate((LTSNewTxt[simulation_i],lts_txt_array[LTSStartLine[job_i]:LTSEndLine[job_i]+1]))
+                simulation.stop = get_simulation_stop.findall(".".join(lts_txt_array[LTSStartLine[job_i]:LTSEndLine[job_i] + 1]))[0]
+                # arcpy.AddMessage((simulation.start, simulation.stop))
                 simulations.append(simulation)
-                LTSNewTxt[job] = np.concatenate((LTSNewTxt[job],lts_txt_array[LTSEndLine[-1]+1:len(lts_txt_array)]))
+                LTSNewTxt[simulation_i] = np.concatenate((LTSNewTxt[simulation_i],lts_txt_array[LTSEndLine[-1]+1:len(lts_txt_array)]))
                 
-                LTS_files.append(LTSFile[0:-4] + "_Split%d.mjl" % (job+1))
+                LTS_files.append(LTSFile[0:-4] + "_Split%d.mjl" % (simulation_i+1))
                 with open(LTS_files[-1],'w') as f:
-                    f.write("\n".join(LTSNewTxt[job]))
-
-                job += 1
+                    f.write("\n".join(LTSNewTxt[simulation_i]))
         
         with open(mex_file,"r") as f:
             mex_file_text = f.readlines()
@@ -710,6 +712,8 @@ class LTSSplitterMex(object):
 
             mex_file_new_text = copy.deepcopy(mex_file_text)
             if LTSFile:
+                # arcpy.AddMessage(len(mex_file_new_text))
+                # arcpy.AddMessage(LTS_files)
                 mex_file_new_text[mex_file_text_mjl_lineno] = re.sub("'[^']*'", "'%s'" % LTS_files[job], mex_file_new_text[mex_file_text_mjl_lineno])
                 for i in [0,1]:
                     if job > 0:
