@@ -13,8 +13,6 @@ scriptFolder = os.path.join(thisFolder, r"scripts")
 sys.path.append(scriptFolder)
 import generate_lts
 from shutil import copyfile
-import re
-from datetime import datetime
 import matplotlib.dates as dates
 import datetime
 import re
@@ -22,6 +20,7 @@ import bisect  # math bisection method
 from time import sleep
 import subprocess
 import copy
+import heapq
 import time
 
 def run_mex(mouse_sim_launch, mex_file, parallel = False, type = "HD"):
@@ -253,7 +252,7 @@ class LTSGenerator(object):
         # hotstart_name.filter.list = ["HotstartBase.PRF"]
         
         hotstart_date = arcpy.Parameter(
-            displayName="Date of hotstart-file (format: YYYY-MM-DD)",
+            displayName="Date of hotstart-file (format: YYYY-MM-DD or )",
             name="hotstart_date",
             datatype="String",
             parameterType="Optional",
@@ -431,7 +430,7 @@ class LTSSplitter(object):
             displayName="Input LTS file",
             name="LTSFile",
             datatype="File",
-            parameterType="Optional",
+            parameterType="Required",
             direction="Input",)
         LTSFile.filter.list=["mjl"]
         
@@ -549,7 +548,14 @@ class LTSSplitterMex(object):
     def getParameterInfo(self):
         #Define parameter definitions
 
-        # First parameter
+        mex_file = arcpy.Parameter(
+            displayName="Mex Network File",
+            name="mex_file",
+            datatype="File",
+            parameterType="Required",
+            direction="Input")
+        mex_file.filter.list=["mex"]
+        
         LTSFile = arcpy.Parameter(
             displayName="Input LTS file",
             name="LTSFile",
@@ -572,14 +578,6 @@ class LTSSplitterMex(object):
             parameterType="Optional",
             direction="Input",)
         RunoffFile.filter.list=["crf"]
-        
-        mex_file = arcpy.Parameter(
-            displayName="Mex Network File",
-            name="mex_file",
-            datatype="File",
-            parameterType="Required",
-            direction="Input")
-        mex_file.filter.list=["mex"]
         
         mouse_sim_launch = arcpy.Parameter(
             displayName="MOUSE Sim Launch Executable path",
@@ -612,7 +610,7 @@ class LTSSplitterMex(object):
         run_network.value = True
         
         
-        params = [LTSFile, LTSCount, RunoffFile, mex_file, mouse_sim_launch, run_runoff, run_network]
+        params = [mex_file, LTSFile, LTSCount, RunoffFile, mouse_sim_launch, run_runoff, run_network]
 
         return params
 
@@ -620,7 +618,13 @@ class LTSSplitterMex(object):
         return True
 
     def updateParameters(self, parameters):  
-                
+        if parameters[0].altered and parameters[0].ValueAsText and not parameters[1].altered and not parameters[1].ValueAsText:
+            with open(parameters[0].ValueAsText, 'r') as f:
+                txt = f.read()
+                match = re.findall("MJL_file = '([^']+)'", txt)
+                if match:
+                    parameters[1].Value = match[0]
+            
         
         return
 
@@ -628,10 +632,10 @@ class LTSSplitterMex(object):
         return
 
     def execute(self, parameters, messages):
-        LTSFile = parameters[0].ValueAsText
-        splitCount = int(parameters[1].ValueAsText)
-        RunoffFile = parameters[2].ValueAsText
-        mex_file = parameters[3].ValueAsText
+        mex_file = parameters[0].ValueAsText    
+        LTSFile = parameters[1].ValueAsText
+        splitCount = int(parameters[2].ValueAsText)
+        RunoffFile = parameters[3].ValueAsText
         mouse_sim_launch = parameters[4].ValueAsText
         run_runoff = parameters[5].Value
         run_network = parameters[6].Value
@@ -648,7 +652,21 @@ class LTSSplitterMex(object):
             def __init__(self, start, stop):
                 self.start = start
                 self.stop = stop
-
+                # self.duration = (datetime.datetime.strptime(self.start, '%Y-%m-%d %H:%M:%S')-datetime.datetime.strptime(self.start, '%Y-%m-%d %H:%M:%S')).total_seconds()/60
+                # if not self.duration > 1:
+                    # self.duration = 60
+            
+            @property
+            def start_extended(self):
+                #Simulation_start = '1997-08-24 12:26:00'    
+                return datetime.datetime.strftime(datetime.datetime.strptime(self.start, '%Y-%m-%d %H:%M:%S') - datetime.timedelta(seconds = 60*60), '%Y-%m-%d %H:%M:%S')
+            
+            @property
+            def stop_extended(self):
+                #Simulation_start = '1997-08-24 12:26:00'    
+                return datetime.datetime.strftime(datetime.datetime.strptime(self.stop, '%Y-%m-%d %H:%M:%S') + datetime.timedelta(seconds = 60*60), '%Y-%m-%d %H:%M:%S')
+               
+            
         # simulations = []
         get_simulation_start = re.compile("Simulation_start *= *'([^']+)'")
         get_simulation_stop = re.compile("Simulation_end *= *'([^']+)'")
@@ -662,6 +680,7 @@ class LTSSplitterMex(object):
         #LTSNewTxt = lts_txt_array[0:LTSStartLine[0]]
         # jobsPerLTS = int(np.ceil(float(len(LTSStartLine))/splitCount))
         jobs_split = np.array_split(range(len(LTSStartLine)), splitCount)
+        
         # arcpy.AddMessage((len(LTSStartLine), jobsPerLTS, splitCount))s
         LTSNewTxt = [[] for i in range(splitCount)]
 
@@ -680,11 +699,12 @@ class LTSSplitterMex(object):
                         simulation.start = get_simulation_start.findall("".join(lts_txt_array[LTSStartLine[job_i]:LTSEndLine[job_i]+1]))[0]
                     LTSNewTxt[simulation_i] = np.concatenate((LTSNewTxt[simulation_i],lts_txt_array[LTSStartLine[job_i]:LTSEndLine[job_i]+1]))
                 simulation.stop = get_simulation_stop.findall(".".join(lts_txt_array[LTSStartLine[job_i]:LTSEndLine[job_i] + 1]))[0]
-                arcpy.AddMessage((simulation.start, simulation.stop))
+                # arcpy.AddMessage((simulation.start, simulation.stop))
                 simulations.append(simulation)
                 LTSNewTxt[simulation_i] = np.concatenate((LTSNewTxt[simulation_i],lts_txt_array[LTSEndLine[-1]+1:len(lts_txt_array)]))
                 
-                LTS_files.append(LTSFile[0:-4] + "_Split%d.mjl" % (simulation_i+1))
+                LTS_files.append(LTSFile[0:-4].replace(r"\\",r"\\\\") + "_Split%d.mjl" % (simulation_i+1))
+
                 with open(LTS_files[-1],'w') as f:
                     f.write("\n".join(LTSNewTxt[simulation_i]))
         
@@ -706,7 +726,8 @@ class LTSSplitterMex(object):
                     copyfile(RunoffFile, RunoffFileNew)
                 else:
                     time.sleep(5)
-    
+                
+            
             mex_file_new = copy.deepcopy(mex_file.replace(".mex","_Split%d.mex" % (job+1)))
             mex_files.append(mex_file_new)
 
@@ -714,25 +735,31 @@ class LTSSplitterMex(object):
             if LTSFile:
                 # arcpy.AddMessage(len(mex_file_new_text))
                 # arcpy.AddMessage(LTS_files)
-                mex_file_new_text[mex_file_text_mjl_lineno] = re.sub("'[^']*'", "'%s'" % LTS_files[job], mex_file_new_text[mex_file_text_mjl_lineno])
+                mex_file_new_text[mex_file_text_mjl_lineno] = re.sub("'[^']*'", "%s" % repr(LTS_files[job].encode('ascii')), mex_file_new_text[mex_file_text_mjl_lineno])
+
                 for i in [0,1]:
                     if job > 0:
-                        mex_file_new_text[mex_file_text_simulation_start_lineno[i]] = re.sub("'[^']*'", simulations[job].start, mex_file_new_text[mex_file_text_simulation_start_lineno[i]])
+                        mex_file_new_text[mex_file_text_simulation_start_lineno[i]] = re.sub("'[^']*'", 
+                                        simulations[job].start_extended if job > 0 and job < splitCount else simulations[job].start, mex_file_new_text[mex_file_text_simulation_start_lineno[i]])
                     if job < splitCount-1:
-                        mex_file_new_text[mex_file_text_simulation_start_lineno[i]+1] = re.sub("'[^']*'", simulations[job].stop, mex_file_new_text[
-                            mex_file_text_simulation_start_lineno[i]+1])
+                        mex_file_new_text[mex_file_text_simulation_start_lineno[i]+1] = re.sub("'[^']*'", 
+                                        simulations[job].stop_extended if job > 0 and job < splitCount else simulations[job].stop, 
+                                        mex_file_new_text[mex_file_text_simulation_start_lineno[i]+1])
             else:
-                mex_file_new_text[mex_file_text_mjl_lineno] = mex_file_new_text[mex_file_text_mjl_lineno].replace(".MJL", "_Split%d.MJL" % (job+1))
+                mex_file_new_text[mex_file_text_mjl_lineno] = mex_file_new_text[mex_file_text_mjl_lineno].replace(r"\\", r"\\\\").replace(".MJL", "_Split%d.MJL" % (job+1))
             
             if RunoffFile:
                 mex_file_new_text[mex_file_text_CRF_lineno] = re.sub("'[^']*'", "'%s'" % RunoffFileNew, mex_file_new_text[mex_file_text_CRF_lineno])
+            elif run_runoff:
+                mex_file_new_text[mex_file_text_CRF_lineno] = re.sub("'[^']*'", "'%s'" % mex_file_new.replace(".mex",".CRF"), mex_file_new_text[mex_file_text_CRF_lineno])
             else:
                 mex_file_new_text[mex_file_text_CRF_lineno] = mex_file_new_text[mex_file_text_CRF_lineno].replace(".CRF", "_Split%d.CRF" % (job+1))
-            
+
             # copyfile(mex_file, mex_file_new)
-            with open(mex_file_new,'w+') as f:
+            with open(mex_file_new,'w') as f:
                 f.writelines(mex_file_new_text)
 
+            # return
             # if mouse_sim_launch:
             #     if run_runoff:
             #         while len(processes) > 0 and not np.sum(
@@ -1000,7 +1027,7 @@ class CompressERF(object):
         if parameters[0].ValueAsText:
             erf_files = parameters[0].ValueAsText.split(";")
             erf_file = erf_files[0]
-            with open(erf_file, 'r') as f:
+            with open(erf_file, "r") as f:
                 txt_lines = f.readlines()
             
             re_find_section = re.compile(r"^      \[([^\]]+)\]")

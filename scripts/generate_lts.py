@@ -309,7 +309,13 @@ def writeLTS(parameters, scriptFolder):
     templateFileStr = templateFile.read()
 
     getTimeRE = re.compile("(\d+:\d+:\d+)")
-
+    
+    # Add the start time of rain event to hotstart_time if not already included
+    if re.findall("\d{2}:\d{2}", parametersDict["hotstart_date"]): # if time is included
+        hotstart_datetime = [parametersDict["hotstart_date"] for rain_event in rain_events_included]
+    else:
+        hotstart_datetime = [parametersDict["hotstart_date"] + " " + getTimeRE.findall(rain_event.event_start_time.strftime('%Y-%m-%d %H:%M:00'))[0] for rain_event in rain_events_included]
+    
     # Write LTS file with event information vectors
     fout = open(parametersDict["output_mjl"], 'w')
     fout.write(
@@ -330,8 +336,7 @@ def writeLTS(parameters, scriptFolder):
             configStr=configStr,
             hotstart_param = parametersDict["hotstart_param"].lower(),
             hotstart_name = parametersDict["hotstart_name"],
-            hotstart_date = parametersDict["hotstart_date"],
-            hotstart_time = [getTimeRE.findall(rain_event.event_start_time.strftime('%Y-%m-%d %H:%M:00'))[0] for rain_event in rain_events_included],
+            hotstart_datetime = hotstart_datetime,
             event_reduce_timestep = [rain_event.reduce_timestep for rain_event in rain_events_included],
             event_increase_timestep = [False] + [rain_event.reduce_timestep for rain_event in rain_events_included]))
     fout.close()
