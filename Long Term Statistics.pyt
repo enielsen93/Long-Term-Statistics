@@ -11,7 +11,6 @@ import numpy as np
 thisFolder = os.path.dirname(__file__)
 scriptFolder = os.path.join(thisFolder, r"scripts")
 sys.path.append(scriptFolder)
-import generate_lts
 from shutil import copyfile
 import matplotlib.dates as dates
 import datetime
@@ -298,6 +297,7 @@ class LTSGenerator(object):
         return True
 
     def updateParameters(self, parameters):
+        import generate_lts
         # Set the default distance threshold to 1/100 of the larger of the width
         #  or height of the extent of the input features.  Do not set if there is no 
         #  input dataset yet, or the user has set a specific distance (Altered is true).
@@ -362,6 +362,7 @@ class LTSGenerator(object):
                 if not parameters[13].value > 0:
                     parameters[13].setErrorMessage("Must select duration of dry period")            
     def execute(self, parameters, messages):
+        import generate_lts
         # tool_parameters = ToolParameters(parameters)
         generate_lts.writeLTS(parameters, scriptFolder)
         return
@@ -412,6 +413,7 @@ class LTSCombiner(object):
         return
 
     def execute(self, parameters, messages):
+        import generate_lts
         generate_lts.combineLTS(parameters,scriptFolder)
         return       
         
@@ -657,6 +659,7 @@ class LTSSplitterMex(object):
             def __init__(self, start, stop):
                 self.start = start
                 self.stop = stop
+                self.dateformat = '%Y-%m-%d %H:%M:%S' if self.start.count(":") == 2 else "%Y-%m-%d %H:%M"
                 # self.duration = (datetime.datetime.strptime(self.start, '%Y-%m-%d %H:%M:%S')-datetime.datetime.strptime(self.start, '%Y-%m-%d %H:%M:%S')).total_seconds()/60
                 # if not self.duration > 1:
                     # self.duration = 60
@@ -664,12 +667,12 @@ class LTSSplitterMex(object):
             @property
             def start_extended(self):
                 #Simulation_start = '1997-08-24 12:26:00'    
-                return datetime.datetime.strftime(datetime.datetime.strptime(self.start, '%Y-%m-%d %H:%M:%S') - datetime.timedelta(seconds = 60*60), '%Y-%m-%d %H:%M:%S')
+                return datetime.datetime.strftime(datetime.datetime.strptime(self.start, self.dateformat) - datetime.timedelta(seconds = 60*60), self.dateformat)
             
             @property
             def stop_extended(self):
                 #Simulation_start = '1997-08-24 12:26:00'    
-                return datetime.datetime.strftime(datetime.datetime.strptime(self.stop, '%Y-%m-%d %H:%M:%S') + datetime.timedelta(seconds = 60*60), '%Y-%m-%d %H:%M:%S')
+                return datetime.datetime.strftime(datetime.datetime.strptime(self.stop, self.dateformat) + datetime.timedelta(seconds = 60*60), self.dateformat)
                
             
         # simulations = []
