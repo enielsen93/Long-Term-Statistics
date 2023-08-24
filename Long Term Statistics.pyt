@@ -11,6 +11,7 @@ import numpy as np
 thisFolder = os.path.dirname(__file__)
 scriptFolder = os.path.join(thisFolder, r"scripts")
 sys.path.append(scriptFolder)
+import generate_lts
 from shutil import copyfile
 import matplotlib.dates as dates
 import datetime
@@ -73,7 +74,7 @@ class Toolbox(object):
         self.alias = ""
 
         # List of tool classes associated with this toolbox
-        self.tools = [LTSGenerator,LTSCombiner, LTSSplitter, LTSExtractor, DFS0Reducer, LTSSplitterMex, CompressERF]
+        self.tools = [LTSGenerator, LTSCombiner, LTSSplitter, LTSExtractor, DFS0Reducer, LTSSplitterMex, CompressERF]
 
 
 class LTSGenerator(object):
