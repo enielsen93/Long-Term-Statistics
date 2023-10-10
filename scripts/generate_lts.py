@@ -264,13 +264,13 @@ def writeLTS(parameters, scriptFolder):
                 rain_event.reduce_timestep = True
 
         if parametersDict["time_aggregate_enable"].lower() == "true":
-            for period_i in range(len(time_aggregate_periods)-1):
+            for period_i in range(len(time_aggregate_periods)):
                 if rain_event.statistics[period_i] > rain_statistics_sort[int(dataperiod/365.0/time_aggregate_return_period)-time_aggregate_extra_events, period_i]:
                     rain_event.include = True
                     rain_event.selected_because_of.append(str(time_aggregate_periods[period_i]))
 
         if rain_event.include and parametersDict["enable_dtmin"].lower() == "true":
-            for period_i in range(len(time_aggregate_periods)-1):
+            for period_i in range(len(time_aggregate_periods)):
                 if rain_event.statistics[period_i] > rain_statistics_sort[int(dataperiod/365.0/2), period_i]:
                     rain_event.reduce_timestep = True
 
