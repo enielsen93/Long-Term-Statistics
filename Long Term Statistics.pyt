@@ -660,7 +660,10 @@ class LTSSplitterMex(object):
             def __init__(self, start, stop):
                 self.start = start
                 self.stop = stop
-                self.dateformat = '%Y-%m-%d %H:%M:%S' if self.start.count(":") == 2 else "%Y-%m-%d %H:%M"
+
+            @property
+            def dateformat(self):
+                return '%Y-%m-%d %H:%M:%S' if self.start.count(":") == 2 else "%Y-%m-%d %H:%M"
                 # self.duration = (datetime.datetime.strptime(self.start, '%Y-%m-%d %H:%M:%S')-datetime.datetime.strptime(self.start, '%Y-%m-%d %H:%M:%S')).total_seconds()/60
                 # if not self.duration > 1:
                     # self.duration = 60
