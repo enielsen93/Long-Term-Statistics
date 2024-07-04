@@ -101,14 +101,17 @@ def readDFS0(filename):
 # Function that writes DFS0 file
 def writeDFS0(gaugetime, gaugeint, outfile):
     global local_vars
-    gaugetime = gaugetime.tolist()
-    gaugeint = gaugeint.tolist()
+    gaugetime = gaugetime
+    gaugeint = gaugeint
     
     import mikeio
 
-    dfs0 = mikeio.dfs0.Dfs0()
-    dfs0.write(outfile, data = [gaugeint], start_time = dates.num2date(gaugetime[0]),
-           items = [mikeio.eum.ItemInfo("Rainfall Intensity", mikeio.eum.EUMType.Rainfall_Intensity, unit = mikeio.eum.EUMUnit.mu_m_per_sec, data_value_type = "MeanStepBackward")], datetimes = dates.num2date(gaugetime))
+    dataarray = mikeio.DataArray(gaugeint, time=dates.num2date(gaugetime),
+                                 item=mikeio.eum.ItemInfo("Rainfall Intensity", mikeio.eum.EUMType.Rainfall_Intensity,
+                                                          unit=mikeio.eum.EUMUnit.mu_m_per_sec,
+                                                          data_value_type="MeanStepBackward"))
+    dataset = mikeio.Dataset([dataarray])
+    mikeio.dfs._dfs0._write_dfs0(outfile, dataset)
            
     return
 

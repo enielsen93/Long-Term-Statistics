@@ -33,7 +33,7 @@ def run_mex(mouse_sim_launch, mex_file, parallel = False, type = "HD"):
 def readDFS0(filename):
     import mikeio
     
-    dfs0 = mikeio.dfs0.Dfs0(filename)
+    dfs0 = mikeio.dfs.Dfs0(filename)
     dfs0_read = dfs0.read()
     gaugetime, gaugeint = dates.date2num(dfs0_read.time), dfs0_read.data[0]
     return gaugetime, gaugeint
@@ -46,7 +46,7 @@ def writeDFS0(gaugetime, gaugeint, outfile):
     
     import mikeio
 
-    dfs0 = mikeio.dfs0.Dfs0()
+    dfs0 = mikeio.dfs.Dfs0()
     dfs0.write(outfile, data = [gaugeint], start_time = dates.num2date(gaugetime[0]),
            items = [mikeio.eum.ItemInfo("Rainfall Intensity", mikeio.eum.EUMType.Rainfall_Intensity, unit = mikeio.eum.EUMUnit.mu_m_per_sec)], datetimes = dates.num2date(gaugetime))
            
